@@ -23,6 +23,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import os.path
 import sys
 import errno
 import random
@@ -30,14 +31,40 @@ import string
 import argparse
 import subprocess
 
+# A set of read files that comprise a dataset
+class ReadSet:
+    # Takes a line from the file containing the readsets and 
+    name = ""
+    fastaFiles = []
+    def __init__(self, line):
+        self.name, fastaFileNamesRaw = line.split(":")
+        fastaFileNames = fastaFileNamesRaw.split(";");
+        for fastaFileName in fastaFileNames:
+            if len(fastaFileName.strip()):
+                if "," in fastaFileName:
+                    fastaFileName, bvFileName = fastaFileName.split(",")
+                else:
+                    bvFileName = None
+                if os.path.isfile(fastaFileName):
+                    if bvFileName and os.path.isfile(bvFileName):
+                        fastaFile = FastaFile(fastaFileName, bvFileName)
+                        self.fastaFiles.append(fastaFile)
+                    else:
+                        fastaFile = FastaFile(fastaFileName)
+                        self.fastaFiles.append(fastaFile)
 
 
+class FastaFile:
+    fastaFileName = None
+    bvFileName    = None
+    def __init__(self, fastaFileName, bvFileName = None):
+        self.fastaFileName = fastaFileName
+        self.bvFileName = bvFileName
 
-##############################################################################################################
-#################### From a file of files - store in an array the read files           #######################
-#################### A line = a set of read sets composing the same viratual dataset   #######################
-#################### A line per input virtual dataset                                  #######################
-##############################################################################################################
+
+# From a file of files - store in an array the read files   
+# A line = a set of read sets composing the same viratual dataset   
+# A line per input virtual dataset                        
 def getReadFiles(F):
     matrix= []
     fofs=open(F,'r')
@@ -48,7 +75,10 @@ def getReadFiles(F):
         line=line.split(":")[1]
         tab_line=line[:-1].split(";") # [:-1] removes the \n
         for i in range(len(tab_line)):
-            tab_line[i]=tab_line[i].strip().split(",")[0] # removes first and/or last empty characters before and after set names and conserves only the read names (not their eventual .bv files)
+            # removes first and/or last empty characters before and after set 
+            # names and conserves only the read names (not their eventual .bv 
+            # files)
+            tab_line[i]=tab_line[i].strip().split(",")[0] 
         matrix.append(tab_line)
     fofs.close()
     return matrix
@@ -78,7 +108,9 @@ def getReadBVFiles(F):
         line=line.split(":")[1]
         tab_line=line[:-1].split(";") # [:-1] removes the \n
         for i in range(len(tab_line)):
-            tab_line[i]=tab_line[i].strip().split(",")[1] # removes first and/or last empty characters before and after set names and conserve only the .bv file names
+            # removes first and/or last empty characters before and after set 
+            # names and conserve only the .bv file names
+            tab_line[i]=tab_line[i].strip().split(",")[1] 
         matrix.append(tab_line)
     fofs.close()
     return matrix
@@ -89,16 +121,15 @@ def getReadSetsNames(F):
     while(True):
         line=fofs.readline()
         if not line: break
-        if not line.strip(): continue # avoid empty lines
+        # avoid empty lines
+        if not line.strip(): continue 
         table.append(line.split(":")[0].strip())
     return table
     
 
-##############################################################################################################
-#################### From  an array of the read files                                  #######################
-#################### Filter the reads respecting parameters                            #######################
-#################### For each set generates a .bv having the same name as the input read set #################
-##############################################################################################################   
+# From  an array of the read files                         
+# Filter the reads respecting parameters                   
+# For each set generates a .bv having the same name as the input read set
 def filterAllReads(readSetMatrix, output_directory, l, n, e, m, SGE_COMMANDS, bin_dir):
     options=" -l "+str(l)+" -e "+str(e)
     filtering_job_ids=""
@@ -119,9 +150,8 @@ def filterAllReads(readSetMatrix, output_directory, l, n, e, m, SGE_COMMANDS, bi
                 filtering_job_ids+=","
     return filtering_job_ids[:-1]
 
-##############################################################################################################
-#################### For each read set: generates a file containing the original line + the .bv info   #######
-##############################################################################################################
+# For each read set: 
+#   generates a file containing the original line + the .bv info
 def generateAFileOfFilesPerOriginalWithFilterBooleanVector(readSetMatrix, bvreadSetMatrix, readSetNames, output_directory, temp_files_prefix):
     for line_id in range(len(readSetMatrix)):
         tab_line=readSetMatrix[line_id]
@@ -135,10 +165,6 @@ def generateAFileOfFilesPerOriginalWithFilterBooleanVector(readSetMatrix, bvread
                 per_set_fofs_bv.write(";")
         per_set_fofs_bv.close()
         
-        
-##############################################################################################################
-####################    #######
-##############################################################################################################
 def generate_A_File_Of_File_Index_WRT_A_Set(readSetMatrix, readSetNames, output_directory, FileName, previous_ref_id, current_index_id):
     line_id=0
     file=open(FileName,'w')
@@ -150,11 +176,7 @@ def generate_A_File_Of_File_Index_WRT_A_Set(readSetMatrix, readSetNames, output_
             file.write(";")            
     file.close()
         
-        
-
-##############################################################################################################
-#################### For each index: generates the query file of files                       #################
-##############################################################################################################
+# For each index: generates the query file of files
 def generateAFileOfSetOfFilesOriginalWithFilterBooleanVector(readSetMatrix, bvreadSetMatrix, readSetNames, output_directory, fileName, whichToIndex):
     line_id=0
     index_fofs_bv=open(fileName,'w') #
@@ -321,19 +343,19 @@ def output_matrices (readSetMatrix, bvreadSetMatrix, readSetNames, output_direct
     
     # Plot the dendrogram for the normalized matrix
     ########################################################
-    command="Rscript --vanilla dendro.R "+output_directory+"matrix_normalized.csv "+output_directory+"dendrogram_normalized.png"
+    command="Rscript --vanilla " + bin_dir + " ../dendro.R "+output_directory+"matrix_normalized.csv "+output_directory+"dendrogram_normalized.png"
     os.system(command)
     
     
     # Plot the heatmap matrices
     # Plain Matrix
-    command="Rscript --vanilla heatmap.r "+output_directory+"matrix_plain.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_plain.png Plain"
+    command="Rscript --vanilla " + bin_dir + " ../heatmap.r "+output_directory+"matrix_plain.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_plain.png Plain"
     os.system(command)
     # Percentage Matrix
-    command="Rscript --vanilla heatmap.r "+output_directory+"matrix_percentage.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_percentage.png Percentage"
+    command="Rscript --vanilla " + bin_dir + " ../heatmap.r "+output_directory+"matrix_percentage.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_percentage.png Percentage"
     os.system(command)
     # Normalized Matrix
-    command="Rscript --vanilla heatmap.r "+output_directory+"matrix_normalized.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_normalized.png Normalized"
+    command="Rscript --vanilla " + bin_dir + " ../heatmap.r "+output_directory+"matrix_normalized.csv " +output_directory+"matrix_normalized.csv "+ output_directory+"heatmap_normalized.png Normalized"
     print command
     os.system(command)
     
